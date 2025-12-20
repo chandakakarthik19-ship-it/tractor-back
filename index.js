@@ -2,49 +2,56 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
-
 require('dotenv').config();
 
 const app = express();
+
+// ================= MIDDLEWARE =================
 app.use(cors());
 app.use(bodyParser.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://Karthik:Admin123@cluster0.rqu1v4m.mongodb.net/tractor-tracker?retryWrites=true&w=majority";
+// ================= ROOT ROUTE (FIX) =================
+app.get('/', (req, res) => {
+  res.send('🚀 Tractor Tracker Backend is Running Successfully!');
+});
+
+// ================= ENV VARIABLES =================
+const MONGO_URI = process.env.MONGO_URI;   // ❌ removed hardcoded value
 const JWT_SECRET = process.env.JWT_SECRET || "secret123";
 
+// ================= MONGODB =================
 mongoose.connect(MONGO_URI)
-  .then(()=> console.log('MongoDB connected'))
+  .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB connect error', err));
 
+// ================= MODELS =================
 const Admin = require('./models/Admin');
 
-const authRoutes = require('./routes/auth');
-const adminRoutes = require('./routes/admin');
-const farmerRoutes = require('./routes/farmer');
-const workRoutes = require('./routes/work');
+// ================= ROUTES =================
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/farmer', require('./routes/farmer'));
+app.use('/api/work', require('./routes/work'));
 
-app.use('/api/auth', authRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/farmer', farmerRoutes);
-app.use('/api/work', workRoutes);
+// ================= SERVER =================
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, ()=> console.log('Server running on port', PORT));
-
-// Create default admin if none exist
-(async ()=>{
-  try{
+// ================= DEFAULT ADMIN =================
+(async () => {
+  try {
     const count = await Admin.countDocuments();
-    if(count === 0){
-      const a = new Admin({ username: 'admin', password: 'admin123' }); // password will be hashed in model
+    if (count === 0) {
+      const a = new Admin({
+        username: 'admin',
+        password: 'admin123'
+      });
       await a.save();
       console.log('Created default admin -> username: admin password: admin123');
     }
-  }catch(e){
+  } catch (e) {
     console.error(e);
   }
 })();
