@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+/* ================= PAYMENT SCHEMA ================= */
 const PaymentSchema = new mongoose.Schema({
   amount: {
     type: Number,
@@ -16,39 +17,43 @@ const PaymentSchema = new mongoose.Schema({
   }
 });
 
-const FarmerSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true
+/* ================= FARMER SCHEMA ================= */
+const FarmerSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    phone: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true
+    },
+    password: {
+      type: String,
+      required: true
+    },
+    profileImage: {
+      type: String
+    },
+    payments: [PaymentSchema]
   },
-  phone: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  password: {
-    type: String,
-    required: true
-  },
-  profileImage: {
-    type: String
-  },
-  payments: [PaymentSchema],
-  createdAt: {
-    type: Date,
-    default: Date.now
+  {
+    timestamps: true // adds createdAt & updatedAt automatically
   }
-});
+);
 
-/* HASH PASSWORD */
-FarmerSchema.pre('save', async function(next){
-  if(!this.isModified('password')) return next();
+/* ================= HASH PASSWORD ================= */
+FarmerSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
 
-/* COMPARE PASSWORD */
-FarmerSchema.methods.comparePassword = function(password){
+/* ================= COMPARE PASSWORD ================= */
+FarmerSchema.methods.comparePassword = function (password) {
   return bcrypt.compare(password, this.password);
 };
 
