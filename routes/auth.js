@@ -7,40 +7,52 @@ const Farmer = require('../models/Farmer');
 const JWT_SECRET = process.env.JWT_SECRET || "secret123";
 
 /* ================= ADMIN LOGIN ================= */
-router.post('/admin/login', async (req, res)=>{
-  const { username, password } = req.body;
+router.post('/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
 
-  const admin = await Admin.findOne({ username });
-  if(!admin) return res.status(401).json({ error: 'Invalid admin' });
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Missing credentials' });
+    }
 
-  const ok = await admin.comparePassword(password);
-  if(!ok) return res.status(401).json({ error: 'Invalid admin' });
+    const admin = await Admin.findOne({ username });
+    if (!admin) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
 
-  const token = jwt.sign(
-    { id: admin._id, role: 'admin' },
-    JWT_SECRET,
-    { expiresIn: '12h' }
-  );
+    const ok = await admin.comparePassword(password);
+    if (!ok) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
 
-  res.json({ token });
+    const token = jwt.sign(
+      { id: admin._id, role: 'admin' },
+      JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 /* ================= FARMER LOGIN ================= */
-router.post('/farmer/login', async (req, res)=>{
+router.post('/farmer/login', async (req, res) => {
   try {
     const { phone, password } = req.body;
 
-    if(!phone || !password){
+    if (!phone || !password) {
       return res.status(400).json({ error: 'Missing credentials' });
     }
 
     const farmer = await Farmer.findOne({ phone });
-    if(!farmer){
+    if (!farmer) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const ok = await farmer.comparePassword(password);
-    if(!ok){
+    if (!ok) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -55,7 +67,6 @@ router.post('/farmer/login', async (req, res)=>{
       farmerId: farmer._id,
       name: farmer.name
     });
-
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
