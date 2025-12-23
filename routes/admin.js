@@ -8,7 +8,9 @@ const { authAdmin } = require('./middleware');
 
 const upload = multer({ dest: 'uploads/' });
 
-/* ================= ADMIN CHANGE PASSWORD ================= */
+/* ======================================================
+   ADMIN CHANGE PASSWORD (OLD PASSWORD → NEW PASSWORD)
+   ====================================================== */
 router.post('/change-password', authAdmin, async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
@@ -17,18 +19,18 @@ router.post('/change-password', authAdmin, async (req, res) => {
       return res.status(400).json({ error: 'All fields required' });
     }
 
-    // authAdmin already verified token
-    const admin = await Admin.findById(req.admin.id);
+    // 🔥 FIX: use req.user.id (NOT req.admin.id)
+    const admin = await Admin.findById(req.user.id);
     if (!admin) {
       return res.status(404).json({ error: 'Admin not found' });
     }
 
-    const ok = await admin.comparePassword(oldPassword);
-    if (!ok) {
+    const isMatch = await admin.comparePassword(oldPassword);
+    if (!isMatch) {
       return res.status(401).json({ error: 'Old password incorrect' });
     }
 
-    admin.password = newPassword;
+    admin.password = newPassword; // bcrypt hash in model
     await admin.save();
 
     res.json({ success: true });
@@ -37,8 +39,9 @@ router.post('/change-password', authAdmin, async (req, res) => {
   }
 });
 
-
-/* ================= CREATE FARMER (ADMIN) ================= */
+/* ======================================================
+   CREATE FARMER (ADMIN)
+   ====================================================== */
 router.post('/farmers', authAdmin, upload.single('profile'), async (req, res) => {
   try {
     const { name, phone, password } = req.body;
@@ -61,46 +64,44 @@ router.post('/farmers', authAdmin, upload.single('profile'), async (req, res) =>
     });
 
     await farmer.save();
-
-    res.json({
-      success: true,
-      farmer
-    });
+    res.json({ success: true, farmer });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ================= LIST FARMERS (ADMIN) ================= */
+/* ======================================================
+   LIST FARMERS (ADMIN)
+   ====================================================== */
 router.get('/farmers', authAdmin, async (req, res) => {
-  const list = await Farmer.find()
+  const farmers = await Farmer.find()
     .select('-password')
     .sort({ createdAt: -1 });
 
-  res.json({
-    success: true,
-    farmers: list
-  });
+  res.json({ success: true, farmers });
 });
 
-/* ================= DELETE FARMER ================= */
+/* ======================================================
+   DELETE FARMER + ALL WORKS
+   ====================================================== */
 router.delete('/farmer/:id', authAdmin, async (req, res) => {
   try {
     await Work.deleteMany({ farmer: req.params.id });
     await Farmer.findByIdAndDelete(req.params.id);
-
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-
-/* ================= ADD WORK (ADMIN) ================= */
+/* ======================================================
+   ADD WORK (ADMIN)
+   ====================================================== */
 router.post('/work', authAdmin, async (req, res) => {
   try {
     let { farmerId, workType, minutes, ratePer60, notes, timeStr } = req.body;
 
+    // Convert time string if provided
     if ((!minutes || minutes === '') && timeStr) {
       const s = String(timeStr);
       if (s.includes('.')) {
@@ -127,17 +128,15 @@ router.post('/work', authAdmin, async (req, res) => {
     });
 
     await work.save();
-
-    res.json({
-      success: true,
-      work
-    });
+    res.json({ success: true, work });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ================= UPDATE WORK ================= */
+/* ======================================================
+   UPDATE WORK (ALLOW FARMER CHANGE)
+   ====================================================== */
 router.put('/work/:id', authAdmin, async (req, res) => {
   try {
     const { farmerId, workType, minutes, ratePer60, paymentGiven, notes } = req.body;
@@ -153,7 +152,7 @@ router.put('/work/:id', authAdmin, async (req, res) => {
       notes
     };
 
-    // ✅ allow farmer change
+    // ✅ Allow farmer change
     if (farmerId) {
       updateData.farmer = farmerId;
     }
@@ -174,29 +173,31 @@ router.put('/work/:id', authAdmin, async (req, res) => {
   }
 });
 
-
-/* ================= DELETE WORK ================= */
+/* ======================================================
+   DELETE WORK
+   ====================================================== */
 router.delete('/work/:id', authAdmin, async (req, res) => {
   await Work.findByIdAndDelete(req.params.id);
   res.json({ success: true });
 });
 
-/* ================= LIST WORK (ADMIN) ================= */
+/* ======================================================
+   LIST WORK (ADMIN)
+   ====================================================== */
 router.get('/work', authAdmin, async (req, res) => {
   const filter = {};
   if (req.query.farmerId) filter.farmer = req.query.farmerId;
 
-  const list = await Work.find(filter)
+  const works = await Work.find(filter)
     .populate('farmer', 'name phone')
     .sort({ date: -1 });
 
-  res.json({
-    success: true,
-    works: list
-  });
+  res.json({ success: true, works });
 });
 
-/* ================= PAYMENT ================= */
+/* ======================================================
+   PAYMENT
+   ====================================================== */
 router.post('/payment/:farmerId', authAdmin, async (req, res) => {
   const { amount, workId } = req.body;
 
