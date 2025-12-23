@@ -11,13 +11,22 @@ const upload = multer({ dest: 'uploads/' });
 /* ================= ADMIN CHANGE PASSWORD ================= */
 router.post('/change-password', authAdmin, async (req, res) => {
   try {
-    const { username, currentPassword, newPassword } = req.body;
+    const { oldPassword, newPassword } = req.body;
 
-    const admin = await Admin.findOne({ username });
-    if (!admin) return res.status(404).json({ error: 'Admin not found' });
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: 'All fields required' });
+    }
 
-    const ok = await admin.comparePassword(currentPassword);
-    if (!ok) return res.status(401).json({ error: 'Current password incorrect' });
+    // authAdmin already verified token
+    const admin = await Admin.findById(req.admin.id);
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    const ok = await admin.comparePassword(oldPassword);
+    if (!ok) {
+      return res.status(401).json({ error: 'Old password incorrect' });
+    }
 
     admin.password = newPassword;
     await admin.save();
@@ -27,6 +36,7 @@ router.post('/change-password', authAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 /* ================= CREATE FARMER (ADMIN) ================= */
 router.post('/farmers', authAdmin, upload.single('profile'), async (req, res) => {
@@ -74,12 +84,17 @@ router.get('/farmers', authAdmin, async (req, res) => {
 });
 
 /* ================= DELETE FARMER ================= */
-router.delete('/farmers/:id', authAdmin, async (req, res) => {
-  await Farmer.findByIdAndDelete(req.params.id);
-  await Work.deleteMany({ farmer: req.params.id });
+router.delete('/farmer/:id', authAdmin, async (req, res) => {
+  try {
+    await Work.deleteMany({ farmer: req.params.id });
+    await Farmer.findByIdAndDelete(req.params.id);
 
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
+
 
 /* ================= ADD WORK (ADMIN) ================= */
 router.post('/work', authAdmin, async (req, res) => {
@@ -124,17 +139,41 @@ router.post('/work', authAdmin, async (req, res) => {
 
 /* ================= UPDATE WORK ================= */
 router.put('/work/:id', authAdmin, async (req, res) => {
-  const { workType, minutes, ratePer60, paymentGiven, notes } = req.body;
-  const totalAmount = (minutes / 60) * Number(ratePer60 || 0);
+  try {
+    const { farmerId, workType, minutes, ratePer60, paymentGiven, notes } = req.body;
 
-  const work = await Work.findByIdAndUpdate(
-    req.params.id,
-    { workType, minutes, ratePer60, totalAmount, paymentGiven, notes },
-    { new: true }
-  );
+    const totalAmount = (minutes / 60) * Number(ratePer60 || 0);
 
-  res.json({ success: true, work });
+    const updateData = {
+      workType,
+      minutes,
+      ratePer60,
+      totalAmount,
+      paymentGiven,
+      notes
+    };
+
+    // ✅ allow farmer change
+    if (farmerId) {
+      updateData.farmer = farmerId;
+    }
+
+    const work = await Work.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    );
+
+    if (!work) {
+      return res.status(404).json({ error: 'Work not found' });
+    }
+
+    res.json({ success: true, work });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
+
 
 /* ================= DELETE WORK ================= */
 router.delete('/work/:id', authAdmin, async (req, res) => {
