@@ -86,10 +86,28 @@ router.get('/farmers', authAdmin, async (req, res) => {
    ====================================================== */
 router.delete('/farmer/:id', authAdmin, async (req, res) => {
   try {
+    const { adminPassword } = req.body;
+
+    if(!adminPassword){
+      return res.status(400).json({ error: 'Admin password required' });
+    }
+
+    const admin = await Admin.findById(req.user.id);
+    if(!admin){
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    const ok = await admin.comparePassword(adminPassword);
+    if(!ok){
+      return res.status(401).json({ error: 'Admin password incorrect' });
+    }
+
+    // ✅ delete farmer & works
     await Work.deleteMany({ farmer: req.params.id });
     await Farmer.findByIdAndDelete(req.params.id);
+
     res.json({ success: true });
-  } catch (err) {
+  } catch(err){
     res.status(500).json({ error: err.message });
   }
 });
